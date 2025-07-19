@@ -92,6 +92,10 @@ log "Adicionando permissão no sudoers para restartar squid..."
 echo "www-data ALL=NOPASSWD: /bin/systemctl restart squid" > /etc/sudoers.d/99-squid-restart
 chmod 440 /etc/sudoers.d/99-squid-restart
 
+sudo touch /etc/squid/passwd
+sudo chown www-data:proxy /etc/squid/passwd
+sudo chmod 660 /etc/squid/passwd
+
 # IPv6 opcional
 ipv6_block=$(ip -6 addr show scope global | grep -oP 'inet6 \K[0-9a-fA-F:]+(?=::)' | head -n1)
 if [[ -n "$ipv6_block" ]]; then
