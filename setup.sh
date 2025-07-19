@@ -60,7 +60,7 @@ apt-get upgrade -yq >> "$LOG_FILE" 2>&1
 
 # Dependências
 log "Instalando dependências..."
-install_pkg curl wget unzip zip git apache2 php libapache2-mod-php php-cli php-common php-mbstring php-xml php-curl php-zip squid apache2-utils ufw
+install_pkg curl wget unzip zip git apache2 php libapache2-mod-php php-cli php-common php-mbstring php-xml php-curl php-zip squid apache2-utils ufw sudo
 
 # Apache root
 log "Configurando Apache para rodar como root..."
@@ -81,11 +81,16 @@ chmod -R 755 /var/www/html
 chown -R root:root /var/www/html
 chmod +x /var/www/html/*.php
 
-# Criar pasta de logs
+# Criar pasta de logs com permissões para o PHP
 log "Criando diretório de logs com permissões corretas..."
 mkdir -p /var/www/html/logs
-chown -R root:root /var/www/html/logs
+chown -R www-data:www-data /var/www/html/logs
 chmod -R 755 /var/www/html/logs
+
+# Permissão para o Apache reiniciar o Squid via sudo
+log "Adicionando permissão no sudoers para restartar squid..."
+echo "www-data ALL=NOPASSWD: /bin/systemctl restart squid" > /etc/sudoers.d/99-squid-restart
+chmod 440 /etc/sudoers.d/99-squid-restart
 
 # IPv6 opcional
 ipv6_block=$(ip -6 addr show scope global | grep -oP 'inet6 \K[0-9a-fA-F:]+(?=::)' | head -n1)
