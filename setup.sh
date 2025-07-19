@@ -25,10 +25,6 @@ if [ "$EUID" -ne 0 ]; then
   fi
 fi
 
-# Pede senha do painel
-read -p "Digite a senha desejada para o painel: " PANEL_PASS
-PANEL_PASS_ESCAPED=$(printf '%q' "$PANEL_PASS") # evita problema com caracteres especiais
-
 log() {
   echo -e "${CYAN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
 }
@@ -54,6 +50,10 @@ critical() {
     exit 1
   fi
 }
+
+echo -ne "${YELLOW}Digite a senha desejada para o painel: ${NC}"
+read -r PANEL_PASS
+PANEL_PASS_ESCAPED=$(printf '%q' "$PANEL_PASS")
 
 echo -e "${GREEN}Iniciando instalação do Proxy Generator Panel...${NC}"
 
