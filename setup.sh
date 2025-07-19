@@ -13,16 +13,27 @@ PANEL_REPO="https://raw.githubusercontent.com/luannsr12/proxy_generator/main"
 LOG_FILE="/var/log/proxy_panel_install.log"
 DEBIAN_FRONTEND=noninteractive
 
+# Solicita senha do painel ANTES de qualquer coisa
+echo -ne "${YELLOW}Digite a senha desejada para o painel: ${NC}"
+read -r PANEL_PASS
+PANEL_PASS_ESCAPED=$(printf '%q' "$PANEL_PASS")
+
 # Verifica root
 if [ "$EUID" -ne 0 ]; then
   echo -e "${YELLOW}Este script requer permissões de root.${NC}"
   if command -v sudo >/dev/null 2>&1; then
     echo -e "${CYAN}Tentando usar sudo...${NC}"
-    exec sudo bash "$0" "$@"
+    exec sudo bash "$0" "$PANEL_PASS"
   else
     echo -e "${RED}Erro: sudo não disponível e script não está como root.${NC}"
     exit 1
   fi
+fi
+
+# Se a senha vier como argumento (ao reiniciar com sudo), captura aqui
+if [ -n "$1" ]; then
+  PANEL_PASS="$1"
+  PANEL_PASS_ESCAPED=$(printf '%q' "$PANEL_PASS")
 fi
 
 log() {
@@ -50,10 +61,6 @@ critical() {
     exit 1
   fi
 }
-
-echo -ne "${YELLOW}Digite a senha desejada para o painel: ${NC}"
-read -r PANEL_PASS
-PANEL_PASS_ESCAPED=$(printf '%q' "$PANEL_PASS")
 
 echo -e "${GREEN}Iniciando instalação do Proxy Generator Panel...${NC}"
 
