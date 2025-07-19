@@ -96,6 +96,9 @@ sudo touch /etc/squid/passwd
 sudo chown www-data:proxy /etc/squid/passwd
 sudo chmod 660 /etc/squid/passwd
 
+chown www-data:www-data /etc/squid/squid.conf
+chmod 644 /etc/squid/squid.conf
+
 # IPv6 opcional
 ipv6_block=$(ip -6 addr show scope global | grep -oP 'inet6 \K[0-9a-fA-F:]+(?=::)' | head -n1)
 if [[ -n "$ipv6_block" ]]; then
