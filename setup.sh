@@ -102,7 +102,7 @@ chmod 440 /etc/sudoers.d/99-squid-restart
 
 touch /etc/squid/passwd
 chown www-data:proxy /etc/squid/passwd
-chmod 660 /etc/squid/passwd
+chmod 644 /etc/squid/passwd
 
 chown www-data:www-data /etc/squid/squid.conf
 chmod 644 /etc/squid/squid.conf
