@@ -1,86 +1,83 @@
 #!/bin/bash
 
-# SETUP COMPLETO PARA PAINEL 3PROXY
-# Versão 2.0
+# PROXY GENERATOR PANEL - INSTALADOR COMPLETO
+# Versão 3.0 - Instalação Automática
 # Luan Alves
 
-# Cores para mensagens
+# Cores
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # Variáveis
 PANEL_REPO="https://github.com/luannsr12/proxy_generator/raw/main"
 LOG_FILE="/var/log/proxy_panel_install.log"
 DEBIAN_FRONTEND=noninteractive
 
-# Função de log
+# Funções
 log() {
   echo -e "${CYAN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Função para verificar e instalar pacotes
 install_pkg() {
   for pkg in "$@"; do
     if ! dpkg -l | grep -q "^ii  $pkg "; then
       log "Instalando $pkg..."
-      apt-get install -yq "$pkg" >> "$LOG_FILE" 2>&1
-      if [ $? -ne 0 ]; then
-        log "${RED}Falha ao instalar $pkg${NC}"
+      if ! apt-get install -yq "$pkg" >> "$LOG_FILE" 2>&1; then
+        log "${YELLOW}Tentativa alternativa para $pkg..."
         apt-get update -yq >> "$LOG_FILE" 2>&1
         apt-get install -yq "$pkg" >> "$LOG_FILE" 2>&1 || {
-          log "${RED}Erro crítico: Falha ao instalar $pkg após tentativa${NC}";
-          exit 1;
+          log "${RED}Falha crítica ao instalar $pkg${NC}";
+          return 1;
         }
       fi
-    else
-      log "$pkg já instalado"
     fi
   done
+  return 0
 }
 
-# Função para verificar e tratar erros críticos
 critical() {
   if [ $? -ne 0 ]; then
-    log "${RED}ERRO CRÍTICO: $1${NC}"
-    log "Verifique o log completo em: $LOG_FILE"
+    log "${RED}ERRO: $1${NC}"
+    log "Consulte o log: $LOG_FILE"
     exit 1
   fi
 }
 
-# Iniciando instalação
+# Banner de início
 echo -e "${GREEN}"
 cat << "EOF"
-  ___  _  _ ___ ___ ___   _____ _____ ___  ___ _____ 
- | _ \| \| | _ \_ _/ __| |_   _|_   _/ _ \| _ \_   _|
- |  _/| .` |  _/| |\__ \   | |   | || (_) |   / | |  
- |_|  |_|\_|_| |___|___/   |_|   |_| \___/|_|_\ |_|  
+ ███████████  ███████████      ███████    █████ █████ █████ █████    ███████████    █████████   ██████   █████ ██████████ █████      
+░░███░░░░░███░░███░░░░░███   ███░░░░░███ ░░███ ░░███ ░░███ ░░███    ░░███░░░░░███  ███░░░░░███ ░░██████ ░░███ ░░███░░░░░█░░███       
+ ░███    ░███ ░███    ░███  ███     ░░███ ░░███ ███   ░░███ ███      ░███    ░███ ░███    ░███  ░███░███ ░███  ░███  █ ░  ░███       
+ ░██████████  ░██████████  ░███      ░███  ░░█████     ░░█████       ░██████████  ░███████████  ░███░░███░███  ░██████    ░███       
+ ░███░░░░░░   ░███░░░░░███ ░███      ░███   ███░███     ░░███        ░███░░░░░░   ░███░░░░░███  ░███ ░░██████  ░███░░█    ░███       
+ ░███         ░███    ░███ ░░███     ███   ███ ░░███     ░███        ░███         ░███    ░███  ░███  ░░█████  ░███ ░   █ ░███      █
+ █████        █████   █████ ░░░███████░   █████ █████    █████       █████        █████   █████ █████  ░░█████ ██████████ ███████████
+░░░░░        ░░░░░   ░░░░░    ░░░░░░░    ░░░░░ ░░░░░    ░░░░░       ░░░░░        ░░░░░   ░░░░░ ░░░░░    ░░░░░ ░░░░░░░░░░ ░░░░░░░░░░░ 
+                                                                                                                                     
 EOF
 echo -e "${NC}"
 
-log "Iniciando instalação completa do painel de proxies..."
-
-# 1. Atualizar sistema base
-log "${YELLOW}[1/8] Atualizando sistema operacional...${NC}"
+# 1. Atualização do sistema
+log "${YELLOW}[1/8] Atualizando sistema...${NC}"
 apt-get update -yq >> "$LOG_FILE" 2>&1
-critical "Falha ao atualizar repositórios"
+critical "Falha no apt-get update"
 apt-get upgrade -yq >> "$LOG_FILE" 2>&1
-critical "Falha ao atualizar sistema"
+critical "Falha no apt-get upgrade"
 
-# 2. Instalar dependências essenciais
-log "${YELLOW}[2/8] Instalando dependências básicas...${NC}"
+# 2. Instalar dependências
+log "${YELLOW}[2/8] Instalando dependências...${NC}"
 install_pkg curl wget unzip zip git build-essential gcc make net-tools \
-iproute2 ufw software-properties-common apt-transport-https ca-certificates \
-gnupg-agent
+iproute2 ufw software-properties-common apt-transport-https \
+ca-certificates gnupg-agent apache2 php libapache2-mod-php \
+php-cli php-common php-mbstring php-xml php-curl php-zip
+critical "Falha ao instalar pacotes"
 
-# 3. Instalar e configurar Apache + PHP
-log "${YELLOW}[3/8] Instalando Apache e PHP...${NC}"
-install_pkg apache2 php libapache2-mod-php php-cli php-common \
-php-mbstring php-xml php-curl php-zip
-
-# Configurar Apache
+# 3. Configurar Apache
+log "${YELLOW}[3/8] Configurando Apache...${NC}"
 cat > /etc/apache2/sites-available/000-default.conf << 'EOL'
 <VirtualHost *:80>
     ServerAdmin webmaster@localhost
@@ -96,55 +93,55 @@ cat > /etc/apache2/sites-available/000-default.conf << 'EOL'
 EOL
 
 a2enmod rewrite >> "$LOG_FILE" 2>&1
-critical "Falha ao ativar mod_rewrite"
 systemctl restart apache2 >> "$LOG_FILE" 2>&1
-critical "Falha ao reiniciar Apache"
+critical "Falha na configuração do Apache"
 
-# 4. Baixar e extrair painel
-log "${YELLOW}[4/8] Configurando painel...${NC}"
+# 4. Baixar e instalar painel
+log "${YELLOW}[4/8] Instalando painel...${NC}"
 wget -q --show-progress -O /tmp/panel.zip "$PANEL_REPO/panel.zip"
 critical "Falha ao baixar painel"
 
 unzip -q -o /tmp/panel.zip -d /var/www/html/
 critical "Falha ao extrair painel"
 
-# Corrigir permissões
 chown -R www-data:www-data /var/www/html >> "$LOG_FILE" 2>&1
 chmod -R 755 /var/www/html >> "$LOG_FILE" 2>&1
 
 # 5. Instalar 3proxy
-log "${YELLOW}[5/8] Instalando 3proxy...${NC}"
+log "${YELLOW}[5/8] Baixando e executando install_proxy.sh...${NC}"
 wget -q --show-progress -O /tmp/install_proxy.sh "$PANEL_REPO/install_proxy.sh"
-critical "Falha ao baixar instalador do proxy"
+critical "Falha ao baixar install_proxy.sh"
 
 chmod +x /tmp/install_proxy.sh
 /tmp/install_proxy.sh >> "$LOG_FILE" 2>&1
-critical "Falha durante instalação do 3proxy"
+critical "Falha na instalação do 3proxy"
 
-# 6. Configurar serviços automáticos
-log "${YELLOW}[6/8] Configurando inicialização automática...${NC}"
-
-# Serviço 3proxy
-cat > /etc/systemd/system/3proxy.service << 'EOL'
+# 6. Configurar serviços
+log "${YELLOW}[6/8] Configurando serviços...${NC}"
+cat > /etc/systemd/system/panel-proxy.service << 'EOL'
 [Unit]
-Description=3proxy Proxy Server
+Description=Proxy Generator Panel Service
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/3proxy /etc/3proxy/3proxy.cfg
 Restart=always
 RestartSec=5
 User=root
+ExecStart=/usr/local/bin/3proxy /etc/3proxy/3proxy.cfg
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=panel-proxy
 
 [Install]
 WantedBy=multi-user.target
 EOL
 
 systemctl daemon-reload >> "$LOG_FILE" 2>&1
-systemctl enable 3proxy >> "$LOG_FILE" 2>&1
-systemctl start 3proxy >> "$LOG_FILE" 2>&1
-critical "Falha ao configurar serviço 3proxy"
+systemctl enable panel-proxy >> "$LOG_FILE" 2>&1
+systemctl start panel-proxy >> "$LOG_FILE" 2>&1
+critical "Falha ao configurar serviço"
 
 # 7. Configurar firewall
 log "${YELLOW}[7/8] Configurando firewall...${NC}"
@@ -152,33 +149,36 @@ ufw allow 80/tcp >> "$LOG_FILE" 2>&1
 ufw allow 22/tcp >> "$LOG_FILE" 2>&1
 ufw allow 30000:31000/tcp >> "$LOG_FILE" 2>&1
 echo "y" | ufw enable >> "$LOG_FILE" 2>&1
-critical "Falha ao configurar firewall"
+critical "Falha no firewall"
 
 # 8. Finalização
 log "${YELLOW}[8/8] Finalizando instalação...${NC}"
 IP=$(curl -4 -s ifconfig.me)
-critical "Falha ao obter IP público"
+critical "Falha ao obter IP"
 
-# Limpeza
 rm -f /tmp/panel.zip /tmp/install_proxy.sh >> "$LOG_FILE" 2>&1
 
-# Relatório final
+# Banner de conclusão
 echo -e "${GREEN}"
 cat << "EOF"
- ___  _  _  ___  ___   ___  _  _  ___  ___   ___  _  _  ___ 
-| _ \| \| ||_ _|/ __| | _ \| \| ||_ _|/ __| | _ \| \| ||_ _|
-|  _/| .` | | | \__ \ |  _/| .` | | | \__ \ |  _/| .` | | | 
-|_|  |_|\_||___||___/ |_|  |_|\_||___||___/ |_|  |_|\_||___|
+ ███████████  ███████████      ███████    █████ █████ █████ █████    ███████████    █████████   ██████   █████ ██████████ █████      
+░░███░░░░░███░░███░░░░░███   ███░░░░░███ ░░███ ░░███ ░░███ ░░███    ░░███░░░░░███  ███░░░░░███ ░░██████ ░░███ ░░███░░░░░█░░███       
+ ░███    ░███ ░███    ░███  ███     ░░███ ░░███ ███   ░░███ ███      ░███    ░███ ░███    ░███  ░███░███ ░███  ░███  █ ░  ░███       
+ ░██████████  ░██████████  ░███      ░███  ░░█████     ░░█████       ░██████████  ░███████████  ░███░░███░███  ░██████    ░███       
+ ░███░░░░░░   ░███░░░░░███ ░███      ░███   ███░███     ░░███        ░███░░░░░░   ░███░░░░░███  ░███ ░░██████  ░███░░█    ░███       
+ ░███         ░███    ░███ ░░███     ███   ███ ░░███     ░███        ░███         ░███    ░███  ░███  ░░█████  ░███ ░   █ ░███      █
+ █████        █████   █████ ░░░███████░   █████ █████    █████       █████        █████   █████ █████  ░░█████ ██████████ ███████████
+░░░░░        ░░░░░   ░░░░░    ░░░░░░░    ░░░░░ ░░░░░    ░░░░░       ░░░░░        ░░░░░   ░░░░░ ░░░░░    ░░░░░ ░░░░░░░░░░ ░░░░░░░░░░░ 
+                                                                                                                                     
 EOF
 echo -e "${NC}"
 
 log "${GREEN}INSTALAÇÃO CONCLUÍDA COM SUCESSO!${NC}"
-log "Painel disponível em: ${YELLOW}http://$IP/${NC}"
-log "Configuração IPv6 em: ${YELLOW}http://$IP/ipv6.php${NC}"
-log "Visualizar log completo: ${YELLOW}tail -f $LOG_FILE${NC}"
-log "Reiniciar 3proxy: ${YELLOW}systemctl restart 3proxy${NC}"
-log "Monitorar proxies: ${YELLOW}tail -f /etc/3proxy/logs/3proxy.log${NC}"
+log "Painel: ${YELLOW}http://$IP/${NC}"
+log "Config IPv6: ${YELLOW}http://$IP/ipv6.php${NC}"
+log "Logs: ${YELLOW}tail -f $LOG_FILE${NC}"
+log "Gerenciar: ${YELLOW}systemctl status panel-proxy${NC}"
 
-echo -e "\n${YELLOW}=== COMANDO PARA ACESSO RÁPIDO ===${NC}"
-echo -e "curl -s $PANEL_REPO/setup.sh | bash"
+echo -e "\n${YELLOW}=== COMANDO PARA REINSTALAÇÃO ===${NC}"
+echo -e "curl -sSL $PANEL_REPO/setup.sh | bash"
 echo -e "${YELLOW}==================================${NC}"
