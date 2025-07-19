@@ -2,8 +2,9 @@
 
 # INSTALADOR 3PROXY
 # Luan Alves
+# Script ajustado para funcionar com sudo e pedir senha se necessário
 
-# Cores
+# Cores para mensagens
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -14,24 +15,34 @@ NC='\033[0m'
 LOG_FILE="/var/log/proxy_install.log"
 IPV6_FILE="/var/www/html/block_ipv6.txt"
 
+# Verifica se o usuário é root ou tem sudo
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${YELLOW}Este script precisa de permissões de administrador (root). Por favor, digite sua senha:${NC}"
+    if ! command -v sudo &> /dev/null; then
+        echo -e "${RED}Erro: O comando 'sudo' não está instalado. Instale-o com 'apt-get install sudo' ou execute como root.${NC}"
+        exit 1
+    fi
+    # Reexecuta o script com sudo
+    exec sudo "$0" "$@"
+fi
+
 # Função para adicionar IPv6 com múltiplos fallbacks
 add_ipv6_address() {
     local iface=$1
     local ip6=$2
     
-    # Tentativa 1: Comando ip normal
-    ip -6 addr add $ip6/64 dev $iface 2>> "$LOG_FILE" && return 0
+    echo -e "${BLUE}Tentando configurar o endereço IPv6 $ip6...${NC}" | tee -a "$LOG_FILE"
     
-    # Tentativa 2: Com sudo se disponível
-    if command -v sudo &> /dev/null; then
-        sudo ip -6 addr add $ip6/64 dev $iface 2>> "$LOG_FILE" && return 0
+    # Tentativa 1: Comando ip normal
+    ip -6 addr add "$ip6/64" dev "$iface" 2>> "$LOG_FILE" && return 0
+    
+    # Tentativa 2: Método alternativo com ifconfig
+    if command -v ifconfig &> /dev/null; then
+        ifconfig "$iface" inet6 add "$ip6/64" 2>> "$LOG_FILE" && return 0
     fi
     
-    # Tentativa 3: Método alternativo com ifconfig
-    ifconfig $iface inet6 add $ip6/64 2>> "$LOG_FILE" && return 0
-    
-    # Tentativa 4: Configuração temporária
-    echo -e "${YELLOW}Tentativa alternativa com iproute2 temporário...${NC}"
+    # Tentativa 3: Configuração temporária com iproute2
+    echo -e "${YELLOW}Tentando método alternativo para configurar IPv6...${NC}" | tee -a "$LOG_FILE"
     (
         mkdir -p /tmp/iproute2
         cd /tmp/iproute2
@@ -39,7 +50,7 @@ add_ipv6_address() {
         tar xzf iproute2-latest.tar.gz
         cd iproute2-*
         make -j$(nproc)
-        ./ip/ip -6 addr add $ip6/64 dev $iface
+        ./ip/ip -6 addr add "$ip6/64" dev "$iface"
     ) 2>> "$LOG_FILE" && return 0
     
     return 1
@@ -49,27 +60,27 @@ add_ipv6_address() {
 echo -e "${GREEN}[+] Iniciando instalação do 3proxy...${NC}" | tee -a "$LOG_FILE"
 
 # 1. Instalar dependências
-echo -e "${YELLOW}[1/5] Instalando dependências...${NC}" | tee -a "$LOG_FILE"
-apt-get update -y >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Falha ao atualizar pacotes${NC}" | tee -a "$LOG_FILE"; exit 1; }
-apt-get install -y build-essential gcc make wget tar net-tools >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Falha ao instalar dependências${NC}" | tee -a "$LOG_FILE"; exit 1; }
+echo -e "${YELLOW}[1/5] Instalando pacotes necessários...${NC}" | tee -a "$LOG_FILE"
+apt-get update -y >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Erro: Falha ao atualizar pacotes. Verifique sua internet.${NC}" | tee -a "$LOG_FILE"; exit 1; }
+apt-get install -y build-essential gcc make wget tar net-tools iproute2 >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Erro: Falha ao instalar pacotes necessários.${NC}" | tee -a "$LOG_FILE"; exit 1; }
 
 # 2. Compilar 3proxy
-echo -e "${YELLOW}[2/5] Compilando 3proxy...${NC}" | tee -a "$LOG_FILE"
-cd /tmp || { echo -e "${RED}Falha ao acessar /tmp${NC}" | tee -a "$LOG_FILE"; exit 1; }
-wget https://github.com/z3APA3A/3proxy/archive/refs/tags/0.9.4.tar.gz >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Falha ao baixar 3proxy${NC}" | tee -a "$LOG_FILE"; exit 1; }
-tar xzf 0.9.4.tar.gz >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Falha ao extrair 3proxy${NC}" | tee -a "$LOG_FILE"; exit 1; }
-cd 3proxy-0.9.4 || { echo -e "${RED}Diretório 3proxy não encontrado${NC}" | tee -a "$LOG_FILE"; exit 1; }
-make -f Makefile.Linux >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Falha ao compilar 3proxy${NC}" | tee -a "$LOG_FILE"; exit 1; }
-make -f Makefile.Linux install >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Falha ao instalar 3proxy${NC}" | tee -a "$LOG_FILE"; exit 1; }
+echo -e "${YELLOW}[2/5] Baixando e compilando o 3proxy...${NC}" | tee -a "$LOG_FILE"
+cd /tmp || { echo -e "${RED}Erro: Não foi possível acessar o diretório /tmp.${NC}" | tee -a "$LOG_FILE"; exit 1; }
+wget https://github.com/z3APA3A/3proxy/archive/refs/tags/0.9.4.tar.gz >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Erro: Falha ao baixar o 3proxy. Verifique sua internet.${NC}" | tee -a "$LOG_FILE"; exit 1; }
+tar xzf 0.9.4.tar.gz >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Erro: Falha ao extrair o 3proxy.${NC}" | tee -a "$LOG_FILE"; exit 1; }
+cd 3proxy-0.9.4 || { echo -e "${RED}Erro: Diretório do 3proxy não encontrado.${NC}" | tee -a "$LOG_FILE"; exit 1; }
+make -f Makefile.Linux >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Erro: Falha ao compilar o 3proxy.${NC}" | tee -a "$LOG_FILE"; exit 1; }
+make -f Makefile.Linux install >> "$LOG_FILE" 2>&1 || { echo -e "${RED}Erro: Falha ao instalar o 3proxy.${NC}" | tee -a "$LOG_FILE"; exit 1; }
 
 # 3. Configurar diretórios
-echo -e "${YELLOW}[3/5] Configurando diretórios...${NC}" | tee -a "$LOG_FILE"
+echo -e "${YELLOW}[3/5] Criando diretórios para o 3proxy...${NC}" | tee -a "$LOG_FILE"
 mkdir -p /etc/3proxy /var/log/3proxy >> "$LOG_FILE" 2>&1
 touch /etc/3proxy/users.lst /etc/3proxy/3proxy.cfg >> "$LOG_FILE" 2>&1
 chmod -R 755 /etc/3proxy /var/log/3proxy >> "$LOG_FILE" 2>&1
 
 # 4. Configurar IPv6
-echo -e "${YELLOW}[4/5] Configurando IPv6...${NC}" | tee -a "$LOG_FILE"
+echo -e "${YELLOW}[4/5] Configurando suporte a IPv6...${NC}" | tee -a "$LOG_FILE"
 
 # Habilitar IPv6 no sistema
 sysctl -w net.ipv6.conf.all.disable_ipv6=0 >> "$LOG_FILE" 2>&1
@@ -87,26 +98,26 @@ iface=$(ip -6 route show default | awk '{print $5}' | head -n1)
 if [ -f "$IPV6_FILE" ]; then
     ipv6_block=$(cat "$IPV6_FILE")
     if [[ "$ipv6_block" =~ ^[0-9a-fA-F:]+::$ ]]; then
-        echo -e "${BLUE}Configurando IPv6 baseado em $IPV6_FILE...${NC}" | tee -a "$LOG_FILE"
+        echo -e "${BLUE}Configurando endereços IPv6 usando $IPV6_FILE...${NC}" | tee -a "$LOG_FILE"
         
         for i in {1..10}; do
             ip6="${ipv6_block}${i}"
             if ! add_ipv6_address "$iface" "$ip6"; then
-                echo -e "${YELLOW}Falha ao configurar $ip6 - Configure manualmente:${NC}" | tee -a "$LOG_FILE"
-                echo "ip -6 addr add $ip6/64 dev $iface" | tee -a "$LOG_FILE"
+                echo -e "${YELLOW}Erro: Não foi possível configurar o endereço $ip6. Tente manualmente com:${NC}" | tee -a "$LOG_FILE"
+                echo "sudo ip -6 addr add $ip6/64 dev $iface" | tee -a "$LOG_FILE"
             else
-                echo -e "${GREEN}Sucesso: $ip6 configurado${NC}" | tee -a "$LOG_FILE"
+                echo -e "${GREEN}Sucesso: Endereço $ip6 configurado!${NC}" | tee -a "$LOG_FILE"
             fi
         done
     else
-        echo -e "${YELLOW}Formato inválido em $IPV6_FILE - Use o formato: 2001:db8:1234:abcd::${NC}" | tee -a "$LOG_FILE"
+        echo -e "${YELLOW}Erro: O arquivo $IPV6_FILE tem um formato inválido. Deve ser algo como '2001:db8:1234:abcd::'.${NC}" | tee -a "$LOG_FILE"
     fi
 else
-    echo -e "${YELLOW}Arquivo $IPV6_FILE não encontrado - Configure via painel web${NC}" | tee -a "$LOG_FILE"
+    echo -e "${YELLOW}Erro: O arquivo $IPV6_FILE não foi encontrado. Configure-o pelo painel web.${NC}" | tee -a "$LOG_FILE"
 fi
 
 # 5. Criar serviço systemd
-echo -e "${YELLOW}[5/5] Criando serviço systemd...${NC}" | tee -a "$LOG_FILE"
+echo -e "${YELLOW}[5/5] Configurando o serviço do 3proxy...${NC}" | tee -a "$LOG_FILE"
 
 cat > /etc/systemd/system/panel-proxy.service << 'EOL'
 [Unit]
@@ -133,9 +144,9 @@ systemctl start panel-proxy >> "$LOG_FILE" 2>&1
 
 # Finalização
 echo -e "${GREEN}[+] Instalação concluída com sucesso!${NC}" | tee -a "$LOG_FILE"
-echo -e "Serviço: panel-proxy" | tee -a "$LOG_FILE"
-echo -e "Status: systemctl status panel-proxy" | tee -a "$LOG_FILE"
-echo -e "Logs: journalctl -u panel-proxy -f" | tee -a "$LOG_FILE"
+echo -e "Para verificar o serviço, use: ${BLUE}systemctl status panel-proxy${NC}" | tee -a "$LOG_FILE"
+echo -e "Para ver os logs, use: ${BLUE}journalctl -u panel-proxy -f${NC}" | tee -a "$LOG_FILE"
+echo -e "Logs detalhados estão em: ${BLUE}$LOG_FILE${NC}" | tee -a "$LOG_FILE"
 
 # Limpeza
 rm -rf /tmp/3proxy-0.9.4 /tmp/0.9.4.tar.gz
