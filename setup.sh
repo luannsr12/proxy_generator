@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# SETUP COMPLETO PARA PAINEL 3PROXY - MÁQUINA CRUA
-# Versão Robusta 2.0 - Instala TUDO automaticamente
+# SETUP COMPLETO PARA PAINEL 3PROXY
+# Versão 2.0
+# Luan Alves
 
 # Cores para mensagens
 RED='\033[0;31m'
@@ -11,7 +12,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Variáveis
-PANEL_REPO="https://github.com/seu-usuario/seu-repo/raw/main"
+PANEL_REPO="https://github.com/luannsr12/proxy_generator/raw/main"
 LOG_FILE="/var/log/proxy_panel_install.log"
 DEBIAN_FRONTEND=noninteractive
 
