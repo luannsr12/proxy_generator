@@ -1,5 +1,9 @@
 # Gerador de proxy
 
+Este é um script que cria um gerador de proxys. Use-o em uma VPS.
+
+Sinta-se a vontade para usar ou modificar.
+
 ### Instalação
 
 ```bash
